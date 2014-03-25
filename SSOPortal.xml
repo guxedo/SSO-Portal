@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<install version="2.5" type="plugin" group="system" method="upgrade">
+    <name>SSO Portal</name>
+    <author>Gustavo Bravo</author>
+    <creationDate>14/02/2013</creationDate>
+    <copyright>Copyright (C) 2013</copyright>
+    <license>GNU General Public License version 2 or later; see LICENSE.txt</license>
+    <authorEmail>guxtab@gmail.com</authorEmail>
+    <version>1.0.0</version>
+    <description>Single Sign On for IIS</description>
+    <files>
+        <filename plugin="SSOPortal">SSOPortal.php</filename>
+        <filename>index.html</filename>
+    </files>
+    <config></config>
+</install>
