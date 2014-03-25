@@ -1,0 +1,145 @@
+<?php
+/**
+ * @package     SSOPortal.Plugin
+ * @subpackage  System.SSO
+ * 
+ * @author      Gustavo Bravo <guxtab@gmail.com>
+ * @copyright   Copyright (C) 2013 Gustavo Bravo. All rights reserved. 
+ * @license     GNU General Public License version 2 or later; see LICENSE.txt
+ * 
+ */
+
+defined('_JEXEC') or die;
+
+jimport('joomla.plugin.plugin');
+
+/**
+ * SSO system plugin class.
+ *
+ * @package		SSOPortal.Plugin
+ * @subpackage	System.SSO
+ * @since		1.0
+ */
+class plgSystemSSOPortal extends JPlugin
+{
+    /**
+     * Initiate SSO after the initial Joomla platform initalisation.
+     * This method checks for backend access, url bypass, ip rules
+     * and current user logged on before passing onto the SSO 
+     * library.
+     *
+     * @return  void
+     * @since   1.0
+     */
+    function onAfterInitialise()
+    {
+        $app = JFactory::getApplication();
+        if ($app->isAdmin()) {
+            return true;
+        }
+        $user =& JFactory::getUser();
+        if ($user->id)
+            return false; //there is somebody already logged on
+        $options  = array();
+        $username = $this->_detectRemoteUser();
+        
+        if (!empty($username)) {
+            // Detection is successful
+            $options['username'] = $username;
+            $options['type']     = 'SSOPortal';
+            $options['sso']      = true;
+        } else {
+            return false;
+        }
+        
+        $this->_login($options);
+    }
+    /**
+     * Check the REMOTE_USER environment variable.
+     *
+     * @return	string
+     * @since	1.0
+     */
+    protected function _detectRemoteUser()
+    {
+        // Get the $_SERVER key and ensure its lowercase and doesn't filter
+        $remote_user = strtolower(JRequest::getVar($this->params->get('userkey', 'REMOTE_USER'), null, 'server', 'string', JREQUEST_ALLOWRAW));
+        
+        if (is_null($remote_user) || $remote_user == '')
+            return null;
+        
+        // Get a username replacement parameter in lowercase and split by semi-colons 
+        // Check if "DOMAIN\user", "user@DOMAIN" or only "user"
+        $remoteUser = explode("\\", $_SERVER['REMOTE_USER']);
+        if (is_array($remoteUser) and count($remoteUser) > 1) {
+            $user = $remoteUser[1];
+        } else {
+            $remoteUser = explode("@", $_SERVER['REMOTE_USER']);
+            if (is_array($remoteUser) and count($remoteUser) > 1) {
+                $user = $remoteUser[0];
+            } else {
+                $user = $_SERVER['REMOTE_USER'];
+            }
+        }
+        return $user;
+    }
+    /**
+     * Login authentication function
+     *
+     * @param	array   $options	Array of extra options
+     * @return	boolean
+     * @since	1.0
+     */
+    protected function _login($options)
+    {
+        $app      = JFactory::getApplication();
+        $response = $this->_authenticate($options['username'], $options);
+        if ($response) {
+            //import the user plugin group.
+            JPluginHelper::importPlugin('user');
+            //lets fire the onUserLogin event
+            $options['action']       = 'core.login.site';
+            $options['autoregister'] = 0;
+            $options['type']         = 'http';
+            $options['sso']          = 1;
+            // Lets fire the onLogin event
+            $results                 = $app->triggerEvent('onUserLogin', array(
+                (array) $response,
+                $options
+            ));
+            if (!in_array(false, $results, true)) {
+                return true;
+            } else {
+                return false;
+            }
+        }
+        return false;
+    }
+    /**
+     * Check username in Joomla and returns the authentication response as a object
+     *
+     * @param	array   $username	Username
+     * @param	array   $options	Array of extra options
+     * @return	object  $response   Authentication response
+     * @since	1.0
+     */
+    protected function _authenticate($username, $options)
+    {
+        // Create authentication response
+        $response->type = 'SSO';
+        $db             = JFactory::getDbo();
+        $query          = "SELECT username,name FROM #__users WHERE username = '$username'";
+        $db->setQuery($query);
+        $row = $db->loadObject();
+        
+        if (is_object($row) && (count(get_object_vars($row)) > 0)) {
+            $response->username = $row->username;
+            $response->fullname = $row->name;
+            
+        } else {
+            return false;
+        }
+        return $response;
+    }
+    
+}
